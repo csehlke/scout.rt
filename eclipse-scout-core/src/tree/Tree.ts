@@ -1257,25 +1257,40 @@ export class Tree extends Widget implements TreeModel, Filterable<TreeNode> {
   }
 
   protected _updateMarkChildrenChecked(node: TreeNode) {
-    let treeNodeUpdate = this._checkParentsRecursive(node);
+    let checkResult = this._checkParentsRecursive(node);
 
     if (!node.initialized) {
       // No rendering of nodes which have not been initialized yet
-      treeNodeUpdate.removeNode(node);
+      checkResult.removeNode(node);
     }
 
     // Trigger events and render
-    this._renderNodesChecked(treeNodeUpdate.getNodesForRendering());
-    this.trigger('nodesChecked', {
-      nodes: treeNodeUpdate.getNodesForEventTrigger()
-    });
+    this._processTreeCheckNodesResult(checkResult);
   }
 
-  protected _renderNodesChecked(treeNodes: TreeNode[]) {
-    treeNodes.forEach(node => {
-      node._renderChecked();
-      node._renderChildrenChecked();
-    });
+  /**
+   * Processes a {@link TreeCheckNodesResult} object. It renders all updated nodes and triggers
+   * a `nodesChecked` event.
+   *
+   * @param checkNodesResult object with tree node check update
+   * @param triggerEvent indicates whether events should be triggered or not. Default is true.
+   */
+  protected _processTreeCheckNodesResult(checkNodesResult: TreeCheckNodesResult, triggerEvent = true) {
+    // Render
+    if (this.rendered) {
+      checkNodesResult.getNodesForRendering().forEach(node => {
+        node._renderChecked();
+        node._renderChildrenChecked();
+      });
+    }
+
+    // Trigger event
+    let eventTriggerNodes = checkNodesResult.getNodesForEventTrigger();
+    if (this.checkable && triggerEvent && eventTriggerNodes.length) {
+      this.trigger('nodesChecked', {
+        nodes: eventTriggerNodes
+      });
+    }
   }
 
   protected _installNodeTooltipSupport() {
@@ -2592,7 +2607,7 @@ export class Tree extends Widget implements TreeModel, Filterable<TreeNode> {
       updatedNodes.add(uncheckedNodes);
 
       if (opts.checkChildren) {
-        // The configuration of this property and no muiltiCheck does not make sense.
+        // The configuration of this property and no multiCheck does not make sense.
         // All nodes will be unselected and no new node is selected.
         nodes = []; // Like a return but with render, does not run through the forEach
       }
@@ -2614,17 +2629,8 @@ export class Tree extends Widget implements TreeModel, Filterable<TreeNode> {
       updatedNodes.add(updatedParents);
     });
 
-    // Trigger update event
-    if (opts.triggerNodesChecked && updatedNodes.getNodesForEventTrigger().length > 0) {
-      this.trigger('nodesChecked', {
-        nodes: updatedNodes.getNodesForEventTrigger()
-      });
-    }
-
-    // Render
-    if (this.rendered) {
-      this._renderNodesChecked(updatedNodes.getNodesForRendering());
-    }
+    // Trigger events and render
+    this._processTreeCheckNodesResult(updatedNodes, opts.triggerNodesChecked);
   }
 
   protected _checkChildrenRecursive(parentNode: TreeNode, opts: TreeNodeCheckOptions): TreeCheckNodesResult {
