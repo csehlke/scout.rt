@@ -109,8 +109,8 @@ public class SunSecurityProvider implements ISecurityProvider, ILegacySecurityPr
   @Override
   public EncryptionKey createDecryptionKey(char[] password, byte[] salt, int keyLen, byte[] compatibilityHeader) {
     String v = compatibilityHeader != null ? new String(compatibilityHeader, StandardCharsets.US_ASCII) : ENCRYPTION_COMPATIBILITY_HEADER_2021_V1;
-    if (ENCRYPTION_COMPATIBILITY_HEADER_2021_V1.equals(v)) {
-      // legacy
+    if (ENCRYPTION_COMPATIBILITY_HEADER_2021_V1.equals(v) || ENCRYPTION_COMPATIBILITY_HEADER_2023_V1.equals(v)) {
+      // legacy (also used if no header is set, see above)
       return createEncryptionKeyInternal(
           password,
           salt,
@@ -122,7 +122,7 @@ public class SunSecurityProvider implements ISecurityProvider, ILegacySecurityPr
           128,
           3557);
     }
-    if (ENCRYPTION_COMPATIBILITY_HEADER_2023_V1.equals(v)) {
+    if (ENCRYPTION_COMPATIBILITY_HEADER_2024_V1.equals(v)) {
       return createEncryptionKeyInternal(
           password,
           salt,
@@ -132,7 +132,7 @@ public class SunSecurityProvider implements ISecurityProvider, ILegacySecurityPr
           "SunJCE",
           16,
           128,
-          3557);
+          10000);
     }
     if (ENCRYPTION_COMPATIBILITY_HEADER.equals(v)) {
       // latest
@@ -168,15 +168,7 @@ public class SunSecurityProvider implements ISecurityProvider, ILegacySecurityPr
 
       SecretKey secretKey = new SecretKeySpec(key, cipherAlgorithm);
       GCMParameterSpec parameters = new GCMParameterSpec(gcmAuthTagBitLen, iv);
-      byte[] compatibilityHeader = ("[1:"
-          + keyLen
-          + "-" + secretKeyAlgorithm
-          + "-" + cipherAlgorithm
-          + "-" + cipherAlgorithmProvider
-          + "-" + gcmInitVecLen
-          + "-" + gcmAuthTagBitLen
-          + "-" + keyDerivationIterationCount
-          + "]").getBytes(StandardCharsets.US_ASCII);
+      byte[] compatibilityHeader = generateCompatibilityHeader(keyLen, secretKeyAlgorithm, cipherAlgorithm, cipherAlgorithmProvider, gcmInitVecLen, gcmAuthTagBitLen, keyDerivationIterationCount);
       return new EncryptionKey(secretKey, parameters, compatibilityHeader);
     }
     catch (NoSuchAlgorithmException e) {
@@ -187,6 +179,27 @@ public class SunSecurityProvider implements ISecurityProvider, ILegacySecurityPr
     }
   }
 
+  protected static byte[] generateCompatibilityHeader(int keyLen, String secretKeyAlgorithm, String cipherAlgorithm, String cipherAlgorithmProvider, int gcmInitVecLen, int gcmAuthTagBitLen, int keyDerivationIterationCount) {
+    String headerStr = "[1:"
+                       + keyLen
+                       + "-" + secretKeyAlgorithm
+                       + "-" + cipherAlgorithm
+                       + "-" + cipherAlgorithmProvider
+                       + "-" + gcmInitVecLen
+                       + "-" + gcmAuthTagBitLen
+                       + "-" + keyDerivationIterationCount
+                       + "]";
+    switch (headerStr) {
+      case "[1:128-PBKDF2WithHmacSHA256-AES-SunJCE-16-128-3557]":
+        headerStr = ENCRYPTION_COMPATIBILITY_HEADER_2023_V1;
+        break;
+      case "[1:128-PBKDF2WithHmacSHA256-AES-SunJCE-16-128-10000]":
+        headerStr = ENCRYPTION_COMPATIBILITY_HEADER_2024_V1;
+        break;
+    }
+    return headerStr.getBytes(StandardCharsets.US_ASCII);
+  }
+
   @Override
   public byte[] createPasswordHash(char[] password, byte[] salt) {
     return createPasswordHash(password, salt, MIN_PASSWORD_HASH_ITERATIONS);
@@ -194,29 +207,29 @@ public class SunSecurityProvider implements ISecurityProvider, ILegacySecurityPr
 
   /**
    * @param password
-   *          The password to create the hash for. Must not be {@code null} or empty.
+   *     The password to create the hash for. Must not be {@code null} or empty.
    * @param salt
-   *          The salt to use. Use {@link #createSecureRandomBytes(int)} to generate a new random salt for each
-   *          credential. Do not use the same salt for multiple credentials. The salt should be at least 32 bytes long.
-   *          Remember to save the salt with the hashed password! Must not be {@code null} or an empty array.
+   *     The salt to use. Use {@link #createSecureRandomBytes(int)} to generate a new random salt for each
+   *     credential. Do not use the same salt for multiple credentials. The salt should be at least 32 bytes long.
+   *     Remember to save the salt with the hashed password! Must not be {@code null} or an empty array.
    * @param iterations
-   *          Specifies how many times the method executes its underlying algorithm. A higher value is safer.<br>
-   *          While there is a minimum number of iterations recommended to ensure data safety, this value changes every
-   *          year as technology improves. As by Aug 2021 at least 120000 iterations are recommended, see
-   *          https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html.<br>
-   *          Experimentation is important. To provide a good security use an iteration count so that the call to this
-   *          method requires one half second to execute (on the production system). Also consider the number of users
-   *          and the number of logins executed to find a value that scales in your environment.
+   *     Specifies how many times the method executes its underlying algorithm. A higher value is safer.<br>
+   *     While there is a minimum number of iterations recommended to ensure data safety, this value changes every
+   *     year as technology improves. As by Aug 2021 at least 120000 iterations are recommended, see
+   *     https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html.<br>
+   *     Experimentation is important. To provide a good security use an iteration count so that the call to this
+   *     method requires one half second to execute (on the production system). Also consider the number of users
+   *     and the number of logins executed to find a value that scales in your environment.
    * @return the password hash
    * @throws AssertionException
-   *           If one of the following conditions is {@code true}:<br>
-   *           <ul>
-   *           <li>The password is {@code null} or an empty array</li>
-   *           <li>The salt is {@code null} or an empty array</li>
-   *           <li>The number of iterations is too small.</li>
-   *           </ul>
+   *     If one of the following conditions is {@code true}:<br>
+   *     <ul>
+   *     <li>The password is {@code null} or an empty array</li>
+   *     <li>The salt is {@code null} or an empty array</li>
+   *     <li>The number of iterations is too small.</li>
+   *     </ul>
    * @throws ProcessingException
-   *           If there is an error creating the hash. <br>
+   *     If there is an error creating the hash. <br>
    */
   public byte[] createPasswordHash(char[] password, byte[] salt, int iterations) {
     assertGreater(assertNotNull(password, "password must not be null.").length, 0, "empty password is not allowed.");
@@ -408,7 +421,7 @@ public class SunSecurityProvider implements ISecurityProvider, ILegacySecurityPr
     }
     catch (NoSuchProviderException | NoSuchAlgorithmException | InvalidKeySpecException | InvalidKeyException | SignatureException | IOException e) {
       throw new ProcessingException("Unable to create signature. If the curve is not supported (see cause below), consider creating a new key-pair"
-          + " by running '{}' on the command line and configure the properties (e.g. 'scout.auth.publicKey' and 'scout.auth.privateKey') with the new values.", SecurityUtility.class.getName(), e);
+                                    + " by running '{}' on the command line and configure the properties (e.g. 'scout.auth.publicKey' and 'scout.auth.privateKey') with the new values.", SecurityUtility.class.getName(), e);
     }
   }
 
@@ -487,17 +500,21 @@ public class SunSecurityProvider implements ISecurityProvider, ILegacySecurityPr
   }
 
   /**
-   * @return Iteration count for key derivation. <a href="https://www.baeldung.com/java-secure-aes-key">AES Keys</a>
-   *         <p>
-   *         2023/05: at least 1000
-   *         <p>
-   *         Do not confuse this parameter with {@link #MIN_PASSWORD_HASH_ITERATIONS}. This parameter is used to derive
-   *         a PBEKey for {@link #encrypt(InputStream, OutputStream, EncryptionKey)} whereas
-   *         {@link #MIN_PASSWORD_HASH_ITERATIONS} is used to hash single passwords in a table that is potentially
-   *         exposed to a rainbow attack.
+   * @return Iteration count for key derivation (current version, see {@link #ENCRYPTION_COMPATIBILITY_HEADER}).
+   * <p>
+   * RFC 8018 recommends to use at least 1000 iterations, OpenSSL currently uses 10000 iterations by default.
+   * <p>
+   * Do not confuse this parameter with {@link #MIN_PASSWORD_HASH_ITERATIONS}. This parameter is used to derive
+   * a PBEKey for {@link #encrypt(InputStream, OutputStream, EncryptionKey)} whereas
+   * {@link #MIN_PASSWORD_HASH_ITERATIONS} is used to hash single passwords in a table that is potentially
+   * exposed to a rainbow attack.
+   * @see <a href="https://www.baeldung.com/java-secure-aes-key">AES Keys</a>
+   * @see <a href="https://datatracker.ietf.org/doc/html/rfc8018#section-4.2">RFC 8018</a>
+   * @see <a href="https://github.com/openssl/openssl/blob/dc43f080c5d60ef76df4087c1cf53a4bbaad93bd/apps/enc.c#L33">OpenSSL key derivation iteration count constant (permalink, check for updates on master branch)</a>
+   * @see <a href="https://docs.openssl.org/3.4/man1/openssl-enc/#options">openssl-enc documentation (see -iter and -pbkdf2 option for iteration count, check for updates on master branch)</a>
    */
   protected int getKeyDerivationIterationCount() {
-    return 3557;
+    return 10000;
   }
 
   /**
@@ -558,7 +575,13 @@ public class SunSecurityProvider implements ISecurityProvider, ILegacySecurityPr
 
   /**
    * @return The key-derivation algorithm (algorithm to create a key based on a password) to use for the
-   *         encryption/decryption.
+   * encryption/decryption (current version, see {@link #ENCRYPTION_COMPATIBILITY_HEADER}).
+   * <p>
+   * Do not confuse this parameter with {@link #getPasswordHashSecretKeyAlgorithm()}. This parameter is used to derive
+   * a PBEKey for {@link #encrypt(InputStream, OutputStream, EncryptionKey)} whereas
+   * {@link #getPasswordHashSecretKeyAlgorithm()} is used to hash single passwords in a table that is potentially
+   * exposed to a rainbow attack.
+   * @see <a href="https://docs.openssl.org/3.4/man1/openssl-enc/#options">openssl-enc documentation (see -md option, check for updates on master branch)</a>
    */
   protected String getSecretKeyAlgorithm() {
     // Password-based key-derivation algorithm (<a href="http://tools.ietf.org/search/rfc2898">PKCS #5 2.0</a>)
@@ -668,21 +691,21 @@ public class SunSecurityProvider implements ISecurityProvider, ILegacySecurityPr
   @Override
   public String toString() {
     return "Implementor: " + getClass().getName() + "\n"
-        + "MinPasswordHashIterations: " + MIN_PASSWORD_HASH_ITERATIONS + "\n"
-        + "MacAlgorithm: " + getMacAlgorithm() + "\n"
-        + "MacAlgorithmProvider: " + getMacAlgorithmProvider() + "\n"
-        + "KeyDerivationIterationCount (PBE): " + getKeyDerivationIterationCount() + "\n"
-        + "SignatureAlgorithm: " + getSignatureAlgorithm() + "\n"
-        + "SignatureProvider: " + getSignatureProvider() + "\n"
-        + "KeyPairGenerationAlgorithm: " + getKeyPairGenerationAlgorithm() + "\n"
-        + "EllipticCurveName: " + getEllipticCurveName() + "\n"
-        + "DigestAlgorithm: " + getDigestAlgorithm() + "\n"
-        + "DigestAlgorithmProvider: " + getDigestAlgorithmProvider() + "\n"
-        + "SecretKeyAlgorithm: " + getSecretKeyAlgorithm() + "\n"
-        + "PasswordHashSecretKeyAlgorithm: " + getPasswordHashSecretKeyAlgorithm() + "\n"
-        + "CipherAlgorithm: " + getCipherAlgorithm() + "\n"
-        + "CipherAlgorithmProvider: " + getCipherAlgorithmProvider() + "\n"
-        + "CipherAlgorithmMode: " + getCipherAlgorithmMode() + "\n"
-        + "CipherAlgorithmPadding: " + getCipherAlgorithmPadding() + "\n";
+           + "MinPasswordHashIterations: " + MIN_PASSWORD_HASH_ITERATIONS + "\n"
+           + "MacAlgorithm: " + getMacAlgorithm() + "\n"
+           + "MacAlgorithmProvider: " + getMacAlgorithmProvider() + "\n"
+           + "KeyDerivationIterationCount (PBE): " + getKeyDerivationIterationCount() + "\n"
+           + "SignatureAlgorithm: " + getSignatureAlgorithm() + "\n"
+           + "SignatureProvider: " + getSignatureProvider() + "\n"
+           + "KeyPairGenerationAlgorithm: " + getKeyPairGenerationAlgorithm() + "\n"
+           + "EllipticCurveName: " + getEllipticCurveName() + "\n"
+           + "DigestAlgorithm: " + getDigestAlgorithm() + "\n"
+           + "DigestAlgorithmProvider: " + getDigestAlgorithmProvider() + "\n"
+           + "SecretKeyAlgorithm: " + getSecretKeyAlgorithm() + "\n"
+           + "PasswordHashSecretKeyAlgorithm: " + getPasswordHashSecretKeyAlgorithm() + "\n"
+           + "CipherAlgorithm: " + getCipherAlgorithm() + "\n"
+           + "CipherAlgorithmProvider: " + getCipherAlgorithmProvider() + "\n"
+           + "CipherAlgorithmMode: " + getCipherAlgorithmMode() + "\n"
+           + "CipherAlgorithmPadding: " + getCipherAlgorithmPadding() + "\n";
   }
 }

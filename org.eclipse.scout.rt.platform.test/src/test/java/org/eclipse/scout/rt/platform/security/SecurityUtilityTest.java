@@ -316,13 +316,23 @@ public class SecurityUtilityTest {
   }
 
   @Test
-  public void testDecryptionApiStability() {
+  public void testDecryptionApiStability_2023() {
     final byte[] encrypted = Base64Utility.decode("43aysPcKhTvyzZIWa6d1wwntGobQOXT38VU=");
     final byte[] salt = Base64Utility.decode("iPENJpMTU8MxarL8ZMHxXw==");
     Assert.assertEquals("myTestData", new String(SecurityUtility.decrypt(encrypted, PASSWORD, salt, 128), ENCODING));
     EncryptionKey key = SecurityUtility.createDecryptionKey(new PushbackInputStream(new ByteArrayInputStream(encrypted), 6), PASSWORD, salt, 128, null);
-    Assert.assertEquals("[1:128-PBKDF2WithHmacSHA256-AES-SunJCE-16-128-3557]", new String(key.getCompatibilityHeader(), StandardCharsets.US_ASCII));
+    Assert.assertEquals("[2023:v1]", new String(key.getCompatibilityHeader(), StandardCharsets.US_ASCII));
     Assert.assertEquals("myTestData", new String(SecurityUtility.decrypt(encrypted, key), ENCODING));
+  }
+
+  @Test
+  public void testDecryptionApiStability_2024() {
+    final byte[] encrypted = Base64Utility.decode("WzIwMjQ6djFdU1rrQiSnCSBlPEk7SZayaYngVKYszy7EbjV1RGUq0CsaJyOHtXZwCp+ogg==");
+    final byte[] salt = "salty".getBytes(ENCODING);
+    Assert.assertEquals("This is an encrypted string", new String(SecurityUtility.decrypt(encrypted, PASSWORD, salt, 128), ENCODING));
+    EncryptionKey key = SecurityUtility.createDecryptionKey(new PushbackInputStream(new ByteArrayInputStream(encrypted), 6), PASSWORD, salt, 128, null);
+    Assert.assertEquals("[2024:v1]", new String(key.getCompatibilityHeader(), StandardCharsets.US_ASCII));
+    Assert.assertEquals("This is an encrypted string", new String(SecurityUtility.decrypt(encrypted, key), ENCODING));
   }
 
   @Test
