@@ -955,7 +955,7 @@ export class Widget extends PropertyEventEmitter implements WidgetModel, ObjectW
     this._renderDisabledStyleInternal(this.$container);
   }
 
-  protected _renderDisabledStyleInternal($element: JQuery<HTMLElement>) {
+  protected _renderDisabledStyleInternal($element: JQuery) {
     if (!$element) {
       return;
     }

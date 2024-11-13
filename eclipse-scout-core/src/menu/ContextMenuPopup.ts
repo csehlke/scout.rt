@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2023 BSI Business Systems Integration AG
+ * Copyright (c) 2010, 2024 BSI Business Systems Integration AG
  *
  * This program and the accompanying materials are made
  * available under the terms of the Eclipse Public License 2.0
@@ -554,7 +554,7 @@ export class ContextMenuPopup extends Popup implements ContextMenuPopupModel {
   }
 
   /** @internal */
-  _adjustTextAlignment($body?: JQuery<HTMLElement>) {
+  _adjustTextAlignment($body?: JQuery) {
     $body = $body || this.$body;
     let $menuItems = this.$visibleMenuItems($body);
     let textOffset = this._calcTextOffset($menuItems);

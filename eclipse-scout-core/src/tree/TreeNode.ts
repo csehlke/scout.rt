@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2023 BSI Business Systems Integration AG
+ * Copyright (c) 2010, 2024 BSI Business Systems Integration AG
  *
  * This program and the accompanying materials are made
  * available under the terms of the Eclipse Public License 2.0
@@ -277,7 +277,7 @@ export class TreeNode implements TreeNodeModel, ObjectWithType {
     this.$node.icon(this.iconId, $icon => $icon.insertBefore(this.$text));
   }
 
-  $icon(): JQuery<HTMLElement> {
+  $icon(): JQuery {
     return this.$node.children('.icon');
   }
 
