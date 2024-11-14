@@ -35,6 +35,7 @@ import org.eclipse.scout.rt.client.ui.desktop.IDesktop;
 import org.eclipse.scout.rt.dataobject.IDoEntity;
 import org.eclipse.scout.rt.platform.BEANS;
 import org.eclipse.scout.rt.platform.Bean;
+import org.eclipse.scout.rt.platform.IgnoreBean;
 import org.eclipse.scout.rt.platform.exception.PlatformError;
 import org.eclipse.scout.rt.platform.exception.ProcessingException;
 import org.eclipse.scout.rt.platform.reflect.AbstractPropertyObserver;
@@ -441,6 +442,7 @@ public class UiCallbacks extends AbstractPropertyObserver {
   /**
    * {@link IUiCallbackHandler} which returns error and results as it is sent from the browser.
    */
+  @IgnoreBean
   public static class NoopUiCallbackHandler<T extends IDoEntity> implements IUiCallbackHandler<T, T> {
 
     private final String m_uiCallbackHandlerObjectType;
